@@ -9,14 +9,107 @@
 
 
 ## Introduction
-
-Swin transformer는 기존 Vision transformer의 단점을 극복하고 여러 컴퓨터비전 작업에 적합한 범용 백본으로 사용되고 있습니다. 계층적인 구조의 트랜스포머이며 shifted window기법을 사용하여 표현하였습니다. shifted window기법은 겹치지 않는 로컬 윈도우에 대한 self-attention을 제한함으로써 효율성을 높이고 cross-window 연결을 허용합니다. 
-
-Swin Transformer는 COCO object detection(`58.7 box AP` and `51.1 mask AP` on test-dev)와 ADE20K semantic segmentation (`53.5 mIoU` on val)에서 강력한 성능을 달성하여 이전 모델보다 큰 성능 증가를 보였습니다.
 ![teaser](figures/teaser.png)
+비전 분야에서는 주로 CNN 백본을 사용해왔으나 NLP분야에서 Transformer가 높은 성능을 보인 이후 비전 분야에도 Transformer를 적용한 ViT모델이 나왔습니다. Self-Attention기법을 사용하였기에 이미지의 전역적인 정보를 가져오는 것이 가능하여 classification작업은 적용이 가능했으나 해상도가 높은 이미지에 대해서 quadratic한 연산량을 보여 효율성이 떨어졌고 detection이나 segmentation과 같은 정교한 비전Task에 대해서는 적용이 불가했습니다.   
+
+따라서 이를 해결하기 위해 제안된 Swin transformer는 두가지 특징을 가집니다.
+
+**1. Hierarchical Feature maps**
+
+Swin Transformer는 레이어가 깊어질수록 회색 테두리로 되어있는 이미지 패치들을 병합하고 빨간색 테두리로 되어있는 윈도우 안에서 지역적인 Self-Attention 연산을 하여 입력 이미지에 대해 선형적인 연산 복잡도를 갖게합니다. 각 윈도우의 패치 수는 고정되어 있으므로 계산 복잡도는 이미지 크기에 비례합니다.
+![](https://velog.velcdn.com/images/bh9711/post/71b8da00-8907-4a25-81bc-d3aa1e42ca29/image.png)
+이러한 계층적 특징 맵을 통해 Swin Transformer는 다양한 해상도에서 이미지 정보를 가져올 수 있어 정교한 비전 Task도 수행 가능하게 합니다. ResNet과 같이 FPN(Feature Pyramid Network)구조이기 때문에 패치를 증가 시켜도 선형적으로 연산량이 증가하게 됩니다. 
+
+**2. Shifted Window self-attention**
+
+
+
+
+
+
+
+계산 복잡도를 선형적으로 줄이기 위해 Swin transformer는 비중첩 윈도우 내에서 self-attention 연산을 하고 윈도우 경계를 넘는 정보를 교환하기 위해 윈도우를 이동시킨다.
+
+**self-attention연산**은 트랜스포머의 인코더와 디코더 블록 모두에서 수행되며 쿼리, 키, 밸류 3개 요소 사이의 문맥적 관계성을 추출하는 과정이다.
+
+먼저 쿼리, 키, 밸류를 만든다. 입력 벡터 수열에 쿼리, 키, 벨류를 만들어주는 행렬곱하여 각각의 행렬을 만들고 이는 태스크를 가장 잘 수행하는 방향으로 학습이 업데이트된다고 한다.
+
+다음으로 쿼리의 셀프 어텐션 출력값 계산은 쿼리와 키를 행렬곱한 뒤 해당 행렬의 모든 요소값을 키 차원수의 제곱근 값으로 나눠주고 이 행렬을 행 단위로 소프트맥스를 취해 스코어 행렬을 만들어준다. 
+
+그 다음 스코어 행렬에 V를 행렬곱해줘서 셀프 어텐션 계산을 마친다.
+![](https://velog.velcdn.com/images/bh9711/post/ff6f141f-68ca-4dad-9d3a-735808f1e459/image.png)
+
+Swin Transformer의 핵심 설계 요소는 아래 그림과 같이 연속적인 self-attention Layer 사이의 window 파티션의 이동이다. Shifted window는 이전 Layer의 window를 연결하여 모델링 능력을 크게 향상시키는 연결을 제공한다. 이 전략은 또한 실제 지연 시간과 관련하여 효율적이다. Window 내의 모든 쿼리 패치는 하드웨어에서 메모리 액세스를 용이하게 하는 동일한 키 세트를 공유한다.
+
+
+![](https://velog.velcdn.com/images/bh9711/post/790d1bc5-936f-4596-a1af-b1f9763e04aa/image.png)
+
+
+이전의 슬라이딩 window 기반 self-attention 접근 방식은 다른 쿼리 픽셀에 대한 다른 키 세트로 인해 일반 하드웨어에서 낮은 지연 시간으로 어려움을 겪고 있다. 제안된 shifted window 방식이 sliding window 방식보다 지연 시간이 훨씬 짧지만 모델링 능력은 비슷하다. 또한 shfted window 접근 방식은 모든 MLP 아키텍처에도 유익하다.
+
+## 방법
+
+### 1. Swin transformer 구조
+
+![](https://velog.velcdn.com/images/bh9711/post/1ecdfa56-9b64-496b-b34f-1449694e2e4f/image.png)
+
+위 그림은 Swin Transformer의 모델 구조와 transformer block을 나타낸다. ViT와 같은 patch partition에 의해 입력 RGB 이미지를 겹치지 않는 패치로 분할한다.
+
+**patch partition**에서는 가장 작은 grid 단위로 image를 partition 한다. 이 패치들은 토큰으로 간주된다. 본 연구에서는 4x4 크기의 patch를 사용하여 각 패치의 feature 차원은 4x4x3=48 이라고 한다.
+
+선형 임베딩 layer에서는 feature를 임의의 크기의 차원 C로 정사영 시킨다. 이러한 패치 토큰에는 수정된 self-attention 연산이 포함된 여러 Transformer 블록이 이러한 패치 토큰에 적용된다. 이는 선형 임베딩과 함께 1단계라고 한다.
+
+계층적인 구조를 위해 네트워크의 계층이 깊어질수록 patch merging layer에 의해 토큰의 수가 감소한다. 
+
+첫번째 patch merging layer는 2개x2개의 neighboring patch로 구성된 각 그룹의 특징을 concat하여 4C-dimentional feature에 선형layer를 적용한다.
+
+feature 변환은 patch merging과 함께 2단계라고 하며 feature변환 이후 Swin transformer block이 적용된다. 
+
+Swin Transformer block에서는 두 개의 연속된 Swin Transformer block이 적용되며, 각 patch에 대한 attention을 연산한다.
+
+첫 번째 transformer block에서는 window based self-attention 이 계산되고, 두번째 block에서 shifted window based self-attention이 적용된다. 
+
+이 process는 3단계와 4단계에서도 반복되는 구조이다.
+
+### 2. Shifted Window based Self-Attention
+
+표준 Transformer 아키텍처와 image classification을 위한 버전은 토큰과 다른 모든 토큰 간의 관계가 계산되는 글로벌 self-attention을 수행한다. 글로벌 계산은 토큰 수와 관련하여 2차 복잡도를 초래하여 조밀한 예측이나 고해상도 이미지를 나타내기 위해 막대한 토큰 세트가 필요한 많은 비전 문제에 적합하지 않다.
+
+#### 1. Self-attention in non-overlapped window
+효율적인 모델링을 위해 전체영역이 아닌 local window내에서 self-attention을 계산하였다. 
+![](https://velog.velcdn.com/images/bh9711/post/c35a7584-2b73-45ad-8215-1c687405fcd8/image.png)
+
+기존의 self-attention과 window based self-attention의 계산식이며 window내에는 MxM개의 패치가 존재하는데 MSA는 패치 수 인 hw에 대해 2차이고 W-MSA는 M이 고정된 경우 hw에 대해 선형이다. 
+
+
+#### 2. Shifted window partitioning in successive blocks
+window based self-attention은 window간의 연결이 부족하여 모델링 능력이 제한된다고 한다. 따라서 겹치지 않는 효율적인 계산을 유지하면서 window사이의 연결을 위해 연속되는 Swin transformer블록에서 두 개의 파티션 구성을 번갈아 가며 전환하는 **Shifted window partitioning** 방식을 제안했다.
+
+Shifted window partitioning 접근법은 이전 레이어에서 인접한 겹치지 않는 window 사이의 연결을 도입하고 image classification, object detection, semantic segmentation에 효과적이라고 한다.
+
+
+#### 3. Efficient batch computation for shifted configuration
+shifted window partitioning의 문제는 더 많은 window를 만들며 일부 창은 MxM보다 작아야 하기 때문에 효율적인 계산을 위해 본 논문에서는 **cyclic-shift**를 적용하였다고 한다. 
+
+![](https://velog.velcdn.com/images/bh9711/post/fa770d40-b8b5-4488-8dcc-7b574fb0ce49/image.png)
+
+위의 그림과 같이 왼쪽 위 방향으로 cyclic-shifting하여 보다 효율적인 배치 계산 방식을 제안하여 배치된 window의 수가 일반 window partition과 동일하게 유지되어 효율적이라고 한다.
+
+#### 4. Relative position bias
+Swin Transformer에서는 패치들 간의 상대적인 위치 정보를 수집하여 저장한다. 이 정보를 활용하면 패치 간 거리에 따라 가중치를 부여하여 자연어 처리에서 사용되는 어텐션 메커니즘과 유사하게, 
+이미지 내에서 더 먼 패치들과의 상호작용을 조절할 수 있다.
+![](https://velog.velcdn.com/images/bh9711/post/e8d31827-166c-4e71-b66c-1041f584a278/image.png)![](https://velog.velcdn.com/images/bh9711/post/ccd34f16-65a4-4c2e-a5b7-38ca25e5e735/image.png)
+
+두 축마다 relative Position의 범위는 [-M + 1, M - 1]이다.
+윈도우 크기가 3인 matrix의 범위는 [-2 , 2]가 된다.
+![](https://velog.velcdn.com/images/bh9711/post/9dd31320-3075-4ee9-b0f8-d4cfdb0963a7/image.png)
+
+![](https://velog.velcdn.com/images/bh9711/post/3f9cb402-2ba0-4920-9b66-6960404544aa/image.png)
+ 
+
 
 ## Main Results on ImageNet with Pretrained Models
-
+Swin Transformer는 COCO object detection(`58.7 box AP` and `51.1 mask AP` on test-dev)와 ADE20K semantic segmentation (`53.5 mIoU` on val)에서 강력한 성능을 달성하여 이전 모델보다 큰 성능 증가를 보였습니다.
 **ImageNet-1K and ImageNet-22K Pretrained Swin-V1 Models**
 
 | name | pretrain | resolution |acc@1 | acc@5 | #params | FLOPs | FPS| 22K model | 1K model |
@@ -100,63 +193,6 @@ Note: <sup>*</sup> indicates multi-scale testing.
 | Swin-B | UPerNet | ImageNet-22K | 640x640 | 160K | 50.04 | 51.66 | 121M | 1841G |
 | Swin-L | UperNet | ImageNet-22K | 640x640 | 160K | 52.05 | 53.53 | 234M | 3230G |
 
-## Citing Swin Transformer
-
-```
-@inproceedings{liu2021Swin,
-  title={Swin Transformer: Hierarchical Vision Transformer using Shifted Windows},
-  author={Liu, Ze and Lin, Yutong and Cao, Yue and Hu, Han and Wei, Yixuan and Zhang, Zheng and Lin, Stephen and Guo, Baining},
-  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
-  year={2021}
-}
-```
-## Citing Local Relation Networks (the first full-attention visual backbone)
-```
-@inproceedings{hu2019local,
-  title={Local Relation Networks for Image Recognition},
-  author={Hu, Han and Zhang, Zheng and Xie, Zhenda and Lin, Stephen},
-  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)},
-  pages={3464--3473},
-  year={2019}
-}
-```
-## Citing Swin Transformer V2
-```
-@inproceedings{liu2021swinv2,
-  title={Swin Transformer V2: Scaling Up Capacity and Resolution}, 
-  author={Ze Liu and Han Hu and Yutong Lin and Zhuliang Yao and Zhenda Xie and Yixuan Wei and Jia Ning and Yue Cao and Zheng Zhang and Li Dong and Furu Wei and Baining Guo},
-  booktitle={International Conference on Computer Vision and Pattern Recognition (CVPR)},
-  year={2022}
-}
-```
-## Citing SimMIM (a self-supervised approach that enables SwinV2-G)
-```
-@inproceedings{xie2021simmim,
-  title={SimMIM: A Simple Framework for Masked Image Modeling},
-  author={Xie, Zhenda and Zhang, Zheng and Cao, Yue and Lin, Yutong and Bao, Jianmin and Yao, Zhuliang and Dai, Qi and Hu, Han},
-  booktitle={International Conference on Computer Vision and Pattern Recognition (CVPR)},
-  year={2022}
-}
-```
-## Citing SimMIM-data-scaling
-```
-@article{xie2022data,
-  title={On Data Scaling in Masked Image Modeling},
-  author={Xie, Zhenda and Zhang, Zheng and Cao, Yue and Lin, Yutong and Wei, Yixuan and Dai, Qi and Hu, Han},
-  journal={arXiv preprint arXiv:2206.04664},
-  year={2022}
-}
-```
-## Citing Swin-MoE
-```
-@misc{hwang2022tutel,
-      title={Tutel: Adaptive Mixture-of-Experts at Scale}, 
-      author={Changho Hwang and Wei Cui and Yifan Xiong and Ziyue Yang and Ze Liu and Han Hu and Zilong Wang and Rafael Salas and Jithin Jose and Prabhat Ram and Joe Chau and Peng Cheng and Fan Yang and Mao Yang and Yongqiang Xiong},
-      year={2022},
-      eprint={2206.03382},
-      archivePrefix={arXiv}
-}
-```
 
 ## Getting Started
 
@@ -165,56 +201,3 @@ Note: <sup>*</sup> indicates multi-scale testing.
 - For **Semantic Segmentation**, please see [Swin Transformer for Semantic Segmentation](https://github.com/SwinTransformer/Swin-Transformer-Semantic-Segmentation).
 - For **Self-Supervised Learning**, please see [Transformer-SSL](https://github.com/SwinTransformer/Transformer-SSL).
 - For **Video Recognition**, please see [Video Swin Transformer](https://github.com/SwinTransformer/Video-Swin-Transformer).
-
-## Third-party Usage and Experiments
-
-***In this pargraph, we cross link third-party repositories which use Swin and report results. You can let us know by raising an issue*** 
-
-(`Note please report accuracy numbers and provide trained models in your new repository to facilitate others to get sense of correctness and model behavior`)
-
-[12/29/2022] Swin Transformers (V2) inference implemented in FasterTransformer: [FasterTransformer](https://github.com/NVIDIA/FasterTransformer/blob/main/docs/swin_guide.md)
-
-[06/30/2022] Swin Transformers (V1) inference implemented in FasterTransformer: [FasterTransformer](https://github.com/NVIDIA/FasterTransformer/blob/main/docs/swin_guide.md)
-
-[05/12/2022] Swin Transformers (V1) implemented in TensorFlow with the pre-trained parameters ported into them. Find the implementation,
-TensorFlow weights, code example here in [this repository](https://github.com/sayakpaul/swin-transformers-tf/).
-
-[04/06/2022] Swin Transformer for Audio Classification: [Hierarchical Token Semantic Audio Transformer](https://github.com/RetroCirce/HTS-Audio-Transformer).
-
-[12/21/2021] Swin Transformer for StyleGAN: [StyleSwin](https://github.com/microsoft/StyleSwin)
-
-[12/13/2021] Swin Transformer for Face Recognition: [FaceX-Zoo](https://github.com/JDAI-CV/FaceX-Zoo)
-
-[08/29/2021] Swin Transformer for Image Restoration: [SwinIR](https://github.com/JingyunLiang/SwinIR)
-
-[08/12/2021] Swin Transformer for person reID: [https://github.com/layumi/Person_reID_baseline_pytorch](https://github.com/layumi/Person_reID_baseline_pytorch)
-
-[06/29/2021] Swin-Transformer in PaddleClas and inference based on whl package: [https://github.com/PaddlePaddle/PaddleClas](https://github.com/PaddlePaddle/PaddleClas)
-
-[04/14/2021] Swin for RetinaNet in Detectron: https://github.com/xiaohu2015/SwinT_detectron2.
-
-[04/16/2021] Included in a famous model zoo: https://github.com/rwightman/pytorch-image-models.
-
-[04/20/2021] Swin-Transformer classifier inference using TorchServe: https://github.com/kamalkraj/Swin-Transformer-Serve
-
-## Contributing
-
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
-
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
-## Trademarks
-
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
-Any use of third-party trademarks or logos are subject to those third-party's policies.
