@@ -107,6 +107,7 @@ Swin Transformer에서는 패치들 간의 상대적인 위치 정보를 수집�
 ![](https://velog.velcdn.com/images/bh9711/post/3f9cb402-2ba0-4920-9b66-6960404544aa/image.png)
  
 
+re
 
 ## Main Results on ImageNet with Pretrained Models
 Swin Transformer는 COCO object detection(`58.7 box AP` and `51.1 mask AP` on test-dev)와 ADE20K semantic segmentation (`53.5 mIoU` on val)에서 강력한 성능을 달성하여 이전 모델보다 큰 성능 증가를 보였습니다.
