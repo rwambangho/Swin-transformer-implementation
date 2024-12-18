@@ -89,27 +89,53 @@ Shifted window partitioning 접근법은 이전 레이어에서 인접한 겹치
 
 
 #### 3. Efficient batch computation for shifted configuration
-shifted window partitioning의 문제는 더 많은 window를 만들며 일부 창은 MxM보다 작아야 하기 때문에 효율적인 계산을 위해 본 논문에서는 **cyclic-shift**를 적용하였다고 한다. 
+shifted window partitioning의 문제는 더 많은 window를 만들며 일부 창은 M x M보다 작아야 하기 때문에 효율적인 계산을 위해 본 논문에서는 **cyclic-shift**를 적용하였다고 한다. 
+
+cyclic shift에 대해 간략히 설명하자면 아래 그림과 같다.
+![image](https://github.com/user-attachments/assets/c65c4b14-0fdc-4812-ac5e-a7407f08f516)
 
 ![](https://velog.velcdn.com/images/bh9711/post/fa770d40-b8b5-4488-8dcc-7b574fb0ce49/image.png)
 
 위의 그림과 같이 왼쪽 위 방향으로 cyclic-shifting하여 보다 효율적인 배치 계산 방식을 제안하여 배치된 window의 수가 일반 window partition과 동일하게 유지되어 효율적이라고 한다.
 
+색깔부분과 회색부분은 서로 다르게 attention이 적용되어야 하기 때문에 mask를 적용을 해준다.
+
+이 attention mask는 서로 인접하지 않은 패치들끼리 연산을 하게 만들고 인접하지 않은 패치들에 대해 가중치를 0을 만들어 해당부분의 정보를 무시하는 기술이다.
+
+따라서 인접하지 않은 패치들 사이의 상호작용을 제한하고 관련있는 패치들끼리의 attention에 집중할 수 있다.
+
+
 #### 4. Relative position bias
 Swin Transformer에서는 패치들 간의 상대적인 위치 정보를 수집하여 저장한다. 이 정보를 활용하면 패치 간 거리에 따라 가중치를 부여하여 자연어 처리에서 사용되는 어텐션 메커니즘과 유사하게, 
-이미지 내에서 더 먼 패치들과의 상호작용을 조절할 수 있다.
+이미지 내에서 더 먼 패치들과의 상호작용을 조절할 수 있다. 정리하자면 **relative position bias는 패치 간 상대적인 위치에 대한 편향 정보를 나타내는 개념으로 self-attention매커니즘에 적용되어 패치 간의 상대적인 위치에 따른 중요도를 반영한다.**
+
+swin은 vit와 달리 입력시퀀스에 position embedding을 더해주지 않고 self-attention을 수행하는 과정에서 relative position bias를 더해준다.
 ![](https://velog.velcdn.com/images/bh9711/post/e8d31827-166c-4e71-b66c-1041f584a278/image.png)![](https://velog.velcdn.com/images/bh9711/post/ccd34f16-65a4-4c2e-a5b7-38ca25e5e735/image.png)
 
 두 축마다 relative Position의 범위는 [-M + 1, M - 1]이다.
 윈도우 크기가 3인 matrix의 범위는 [-2 , 2]가 된다.
 ![](https://velog.velcdn.com/images/bh9711/post/9dd31320-3075-4ee9-b0f8-d4cfdb0963a7/image.png)
 
+x축과 y축을 기점으로 패치 간 상대적인 위치에 대한 편향정보를 계산한다. 이 과정을 거쳐서 최종 relative position bias를 얻게 된다.
+
 ![](https://velog.velcdn.com/images/bh9711/post/3f9cb402-2ba0-4920-9b66-6960404544aa/image.png)
+
+bias matrix의 크기가 25이기 때문에 범위가 0번 인덱스부터 24번까지 있는 것을 확인할 수 있으며 대각행렬이 모두 12인 것을 확인할 수 있다.
+그러나 패치 간의 상대적인 위치에 대한 차원이 2M-1로 적기 때문에 정확한 편향정보를 끌어내기 어렵다. 
+따라서 본 논문에서는 보다 적은 학습 파라미터로 넓은 범위의 relative position bias를 제안하였다.
+
+이를 통해 swin은 긴 범위의 이미지를 효과적으로 학습하고 연산 복잡도를 크게 늘리지 않고 성능을 개선할 수 있다고 한다.
  
+![image](https://github.com/user-attachments/assets/b0dfb775-512d-4ad2-bb92-086b3618c29e)
 
-re
+이렇게 구성된 x축과 y축의 매트릭스에 각각 윈도우사이즈에 -1한 값을 모든 element에 적용하여 더해주게 된다. 이렇게 하는 이유는 이 값들을 실제 인덱스로 표기하기 위해서 값의 범위가 0부터 시작하게 만드는 것이다.
+그 다음으로 x축의 매트릭스에 모든 element의 윈도우 사이즈를 2배 한 결과에 -1이란 값을 적용을 해주고 모두 곱해준다. 그리고 이 결과에 y축에 대한 매트릭스를 더해주게 된다. 이렇게 하면 아래와 같은 relative position bias가 나나타게 된다.
 
-## Main Results on ImageNet with Pretrained Models
+![image](https://github.com/user-attachments/assets/dc5c9cc8-15a9-44e4-858c-994c12c79321)
+
+
+
+## 실험결과
 Swin Transformer는 COCO object detection(`58.7 box AP` and `51.1 mask AP` on test-dev)와 ADE20K semantic segmentation (`53.5 mIoU` on val)에서 강력한 성능을 달성하여 이전 모델보다 큰 성능 증가를 보였습니다.
 **ImageNet-1K and ImageNet-22K Pretrained Swin-V1 Models**
 
