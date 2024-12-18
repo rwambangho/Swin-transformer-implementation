@@ -228,3 +228,9 @@ Note: <sup>*</sup> indicates multi-scale testing.
 - For **Semantic Segmentation**, please see [Swin Transformer for Semantic Segmentation](https://github.com/SwinTransformer/Swin-Transformer-Semantic-Segmentation).
 - For **Self-Supervised Learning**, please see [Transformer-SSL](https://github.com/SwinTransformer/Transformer-SSL).
 - For **Video Recognition**, please see [Video Swin Transformer](https://github.com/SwinTransformer/Video-Swin-Transformer).
+
+- ## 참고자료
+- https://www.youtube.com/watch?v=2lZvuU_IIMA&t=1813s
+- https://www.youtube.com/watch?v=dFwmjV7wIKY&t=2s
+- https://hchoi256.github.io/aipapercv/swin-transformer/
+
