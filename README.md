@@ -47,7 +47,7 @@ Swin Transformer의 핵심 설계 요소는 아래 그림과 같이 연속적인
 
 이전의 슬라이딩 window 기반 self-attention 접근 방식은 다른 쿼리 픽셀에 대한 다른 키 세트로 인해 일반 하드웨어에서 낮은 지연 시간으로 어려움을 겪고 있다. 제안된 shifted window 방식이 sliding window 방식보다 지연 시간이 훨씬 짧지만 모델링 능력은 비슷하다. 또한 shfted window 접근 방식은 모든 MLP 아키텍처에도 유익하다.
 
-## 방법
+## Method
 
 ### 1. Swin transformer 구조
 
